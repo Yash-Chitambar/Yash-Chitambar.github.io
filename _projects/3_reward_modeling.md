@@ -3,8 +3,11 @@ layout: page
 title: Reward Models for Bimanual Manipulation
 description: A causal progress model for a two-arm bottle-placing task, trained on demonstrations and policy failures, and what evaluating it taught me about trusting a reward signal.
 img: assets/img/projects/reward_card.jpg
-importance: 3
+date: 2026-10-01
+importance: 1
 ---
+
+<p class="post-date">{{ page.date | date: "%B %Y" }}</p>
 
 A robot policy is only as good as the data it trains on, and deciding which data is good needs a judge. A reward model is that judge: given a stretch of video and robot state, how much closer to done is the task? If it's trustworthy you can score demonstrations, filter the weak ones, and rank what a policy actually did. If it isn't, you quietly train on the wrong data.
 

@@ -3,8 +3,11 @@ layout: page
 title: Dreamer 4-Style World Model
 description: An action-conditioned video world model built from scratch, and what it taught me about why good predictors make bad planners.
 img: assets/img/projects/dreamer_card.jpg
+date: 2026-09-01
 importance: 2
 ---
+
+<p class="post-date">{{ page.date | date: "%B %Y" }}</p>
 
 A policy answers "what should I do?" A world model answers "what happens if I do this?" That second question is more useful: with it you can plan, evaluate a policy without touching the robot, and learn from imagined experience for any reward you like.
 

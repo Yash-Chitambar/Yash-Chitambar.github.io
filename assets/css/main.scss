@@ -388,6 +388,22 @@ html[data-theme="dark"] .text-links a:hover {
   }
 }
 
+.card-date,
+.post-date {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.card-date {
+  margin: 0.9rem 0 0;
+}
+
+.post-date {
+  margin: 0 0 1.5rem;
+}
+
 /* Publications -------------------------------------------------------------*/
 .publications {
   h2.bibliography {

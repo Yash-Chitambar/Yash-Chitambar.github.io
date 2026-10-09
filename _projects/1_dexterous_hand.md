@@ -3,8 +3,11 @@ layout: page
 title: Dexterous Hand Manipulation Policy
 description: Four ways to teach a robot hand to reorient a cube, scored by one harness, with the bugs that cost me the most time.
 img: assets/img/projects/hand_card.jpg
-importance: 1
+date: 2026-08-01
+importance: 3
 ---
+
+<p class="post-date">{{ page.date | date: "%B %Y" }}</p>
 
 In-hand reorientation is a good stress test for robot learning. The hand has many joints, contact is brief and discontinuous, and the cube is easy to drop. I wanted to know how far each of the standard approaches gets on the same task, so I trained four policies on cube reorientation in MuJoCo and scored them with a single evaluation harness.
 
