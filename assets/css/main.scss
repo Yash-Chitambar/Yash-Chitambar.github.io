@@ -440,16 +440,14 @@ html[data-theme="dark"] .publications ol.bibliography li {
   }
 }
 
-/* Footer -------------------------------------------------------------------*/
+/* Footer: no copyright line, just breathing room ---------------------------*/
 footer.sticky-bottom {
-  border-top: 1px solid var(--blue-line);
-  background: var(--global-bg-color);
-  padding-top: 28px;
-  padding-bottom: 28px;
-  font-size: 0.85rem;
+  border-top: 0;
+  background: transparent;
+  padding: 2.5rem 0;
 
   .container {
-    color: var(--ink-soft);
+    display: none;
   }
 }
 
