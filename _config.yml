@@ -11,7 +11,7 @@ contact_note: >
 description: > # the ">" symbol means to ignore newlines until "footer_text:"
   Yash Chitambar — Computer Science & Data Science at UC Berkeley. Robot learning, world models, and ML systems.
 footer_text: >
-  
+
 keywords: robotics, machine learning, reinforcement learning, world models, UC Berkeley
 lang: en # the language of your site (for example: en, fr, cn, ru, etc.)
 icon: 🤖 # the emoji used as the favicon (alternatively, provide image name in /assets/img/)

@@ -1,13 +1,14 @@
 ---
 # Only the main Sass file needs front matter (the dashes are enough)
 ---
+
 @charset "utf-8";
 
 @use "sass:math";
 @use "sass:string";
 
 @use "variables" with (
-  $max-content-width: {{ site.max_width | default:  "930px" }}
+  $max-content-width: {{site.max_width | default: "930px"}}
 );
 
 @use "themes";
@@ -113,7 +114,10 @@ article p {
 
 a {
   text-decoration: none;
-  transition: color 0.18s var(--ease), background-color 0.18s var(--ease), border-color 0.18s var(--ease);
+  transition:
+    color 0.18s var(--ease),
+    background-color 0.18s var(--ease),
+    border-color 0.18s var(--ease);
 }
 
 article p a,
@@ -289,7 +293,10 @@ article p a,
     color: var(--blue);
     background: transparent;
     text-decoration: none;
-    transition: background-color 0.2s var(--ease), color 0.2s var(--ease), transform 0.2s var(--ease);
+    transition:
+      background-color 0.2s var(--ease),
+      color 0.2s var(--ease),
+      transform 0.2s var(--ease);
 
     &:hover {
       background: var(--blue);
@@ -324,7 +331,10 @@ html[data-theme="dark"] .text-links a:hover {
     background: var(--global-card-bg-color);
     box-shadow: none;
     overflow: hidden;
-    transition: border-color 0.22s var(--ease), transform 0.22s var(--ease), box-shadow 0.22s var(--ease);
+    transition:
+      border-color 0.22s var(--ease),
+      transform 0.22s var(--ease),
+      box-shadow 0.22s var(--ease);
 
     &:hover {
       border-color: var(--blue);
@@ -419,7 +429,9 @@ html[data-theme="dark"] .text-links a:hover {
       border: 1px solid var(--blue);
       border-radius: 6px;
       padding: 0.3rem 0.6rem;
-      transition: background-color 0.18s var(--ease), color 0.18s var(--ease);
+      transition:
+        background-color 0.18s var(--ease),
+        color 0.18s var(--ease);
 
       &:hover {
         background: var(--blue);
