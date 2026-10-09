@@ -1,0 +1,476 @@
+---
+# Only the main Sass file needs front matter (the dashes are enough)
+---
+@charset "utf-8";
+
+@use "sass:math";
+@use "sass:string";
+
+@use "variables" with (
+  $max-content-width: {{ site.max_width | default:  "930px" }}
+);
+
+@use "themes";
+@use "layout";
+
+@use "typography";
+@use "navbar";
+@use "footer";
+@use "blog";
+@use "publications";
+@use "components";
+@use "utilities";
+
+@use "tabs";
+@use "teachings";
+@use "typograms";
+
+/*******************************************************************************
+ * Site design: solid blue + white, Sora / Geist.
+ * Layered on top of the al_folio_core partials above (local override).
+ ******************************************************************************/
+
+:root {
+  --blue: #1e50f0;
+  --blue-deep: #1636b8;
+  --blue-tint: #eef3ff;
+  --blue-line: #d6e0ff;
+  --ink: #0b1b3a;
+  --ink-soft: #52617d;
+  --ease: cubic-bezier(0.22, 0.8, 0.2, 1);
+
+  --font-display: "Sora", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --global-bg-color: #ffffff;
+  --global-text-color: var(--ink);
+  --global-text-color-light: var(--ink-soft);
+  --global-theme-color: var(--blue);
+  --global-hover-color: var(--blue-deep);
+  --global-hover-text-color: #ffffff;
+  --global-divider-color: var(--blue-line);
+  --global-card-bg-color: #ffffff;
+  --global-code-bg-color: var(--blue-tint);
+  --global-footer-bg-color: #ffffff;
+  --global-footer-text-color: var(--ink-soft);
+}
+
+html[data-theme="dark"] {
+  --blue: #6f95ff;
+  --blue-deep: #9db6ff;
+  --blue-tint: #121d38;
+  --blue-line: #1f2e52;
+  --ink: #e8eeff;
+  --ink-soft: #9aa8c9;
+
+  --global-bg-color: #0a1124;
+  --global-card-bg-color: #0f1933;
+  --global-code-bg-color: #121d38;
+  --global-hover-text-color: #0a1124;
+  --global-footer-bg-color: #0a1124;
+}
+
+/* Base ---------------------------------------------------------------------*/
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--blue-line) transparent;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--global-text-color);
+  background-color: var(--global-bg-color);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+p,
+li,
+.post-description,
+.desc {
+  font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+article p {
+  max-width: 68ch;
+}
+
+a {
+  text-decoration: none;
+  transition: color 0.18s var(--ease), background-color 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+
+article p a,
+.post-description a {
+  text-decoration: underline;
+  text-decoration-color: var(--blue-line);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+
+  &:hover {
+    text-decoration-color: var(--blue);
+  }
+}
+
+::selection {
+  background: var(--blue);
+  color: #fff;
+}
+
+* {
+  caret-color: var(--blue);
+}
+
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Navbar -------------------------------------------------------------------*/
+.navbar,
+.navbar.navbar-light {
+  background-color: var(--global-bg-color);
+  opacity: 1;
+  border-bottom: 1px solid var(--blue-line);
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+
+  .navbar-brand {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+
+    .font-weight-bold {
+      font-weight: 700;
+    }
+  }
+
+  .navbar-nav .nav-item .nav-link {
+    position: relative;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 500;
+    padding: 0.25rem 0.7rem;
+    color: var(--ink-soft);
+
+    &::after {
+      content: "";
+      position: absolute;
+      left: 0.7rem;
+      right: 0.7rem;
+      bottom: -2px;
+      height: 2px;
+      background: var(--blue);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.28s var(--ease);
+    }
+
+    &:hover {
+      color: var(--blue);
+    }
+
+    &:hover::after {
+      transform: scaleX(1);
+    }
+  }
+
+  .navbar-nav .nav-item.active > .nav-link {
+    color: var(--blue);
+    font-weight: 600;
+
+    &::after {
+      transform: scaleX(1);
+    }
+  }
+}
+
+#light-toggle {
+  color: var(--ink-soft);
+  transition: color 0.18s var(--ease);
+
+  &:hover {
+    color: var(--blue);
+  }
+}
+
+#progress {
+  &::-webkit-progress-value {
+    background: var(--blue);
+  }
+  &::-moz-progress-bar {
+    background: var(--blue);
+  }
+}
+
+/* Page headers -------------------------------------------------------------*/
+.post-header {
+  margin-bottom: 2rem;
+}
+
+.post-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 5.5vw, 3.6rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  color: var(--ink);
+
+  .font-weight-bold {
+    font-weight: 700;
+    color: var(--ink);
+  }
+}
+
+.post-description,
+.desc {
+  margin-top: 0.6rem;
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--blue);
+}
+
+.post-description {
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+
+/* About: profile photo -----------------------------------------------------*/
+.profile {
+  img {
+    border-radius: 50%;
+    box-shadow: none;
+    outline: 2px solid var(--blue);
+    outline-offset: 6px;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .profile {
+    float: none !important;
+    max-width: 190px;
+    margin: 0.5rem 0 2rem 6px;
+  }
+}
+
+/* About: bracket links -----------------------------------------------------*/
+.text-links {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+
+  a {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--blue);
+    border-radius: 8px;
+    color: var(--blue);
+    background: transparent;
+    text-decoration: none;
+    transition: background-color 0.2s var(--ease), color 0.2s var(--ease), transform 0.2s var(--ease);
+
+    &:hover {
+      background: var(--blue);
+      color: #fff;
+      transform: translateY(-2px);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+}
+
+html[data-theme="dark"] .text-links a:hover {
+  color: #0a1124;
+}
+
+/* Projects -----------------------------------------------------------------*/
+.projects {
+  .row.row-cols-md-3 > .col {
+    @media (min-width: 768px) {
+      flex: 0 0 50%;
+      max-width: 50%;
+    }
+    margin-bottom: 1.5rem;
+  }
+
+  .card,
+  .card.hoverable {
+    border: 1px solid var(--blue-line);
+    border-radius: 14px;
+    background: var(--global-card-bg-color);
+    box-shadow: none;
+    overflow: hidden;
+    transition: border-color 0.22s var(--ease), transform 0.22s var(--ease), box-shadow 0.22s var(--ease);
+
+    &:hover {
+      border-color: var(--blue);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px -14px rgba(30, 80, 240, 0.35);
+    }
+
+    .card-body {
+      padding: 1.5rem;
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+      color: var(--ink);
+      transition: color 0.2s var(--ease);
+    }
+
+    .card-text {
+      font-size: 0.95rem;
+      line-height: 1.55;
+      color: var(--ink-soft);
+    }
+
+    &:hover .card-title {
+      color: var(--blue);
+    }
+  }
+}
+
+/* Publications -------------------------------------------------------------*/
+.publications {
+  h2.bibliography {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--blue);
+    letter-spacing: -0.03em;
+    margin-top: 2.25rem;
+  }
+
+  ol.bibliography li {
+    margin-bottom: 2rem;
+
+    .abbr abbr.badge,
+    .abbr abbr {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      background-color: var(--blue);
+      color: #fff;
+      border-radius: 6px;
+      padding: 0.4rem 0.5rem;
+      box-shadow: none;
+    }
+
+    .title {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      line-height: 1.35;
+      letter-spacing: -0.015em;
+      color: var(--ink);
+    }
+
+    .author,
+    .periodical {
+      font-size: 0.95rem;
+      color: var(--ink-soft);
+    }
+
+    .author a,
+    .author em {
+      color: var(--ink);
+    }
+
+    .author .more-authors {
+      color: var(--blue);
+      cursor: pointer;
+    }
+
+    .links a.btn,
+    .links a.btn.btn-sm {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--blue);
+      background: transparent;
+      border: 1px solid var(--blue);
+      border-radius: 6px;
+      padding: 0.3rem 0.6rem;
+      transition: background-color 0.18s var(--ease), color 0.18s var(--ease);
+
+      &:hover {
+        background: var(--blue);
+        color: #fff;
+      }
+    }
+  }
+}
+
+html[data-theme="dark"] .publications ol.bibliography li {
+  .abbr abbr.badge,
+  .abbr abbr {
+    color: #0a1124;
+  }
+
+  .links a.btn:hover {
+    color: #0a1124;
+  }
+}
+
+/* Footer -------------------------------------------------------------------*/
+footer.sticky-bottom {
+  border-top: 1px solid var(--blue-line);
+  background: var(--global-bg-color);
+  padding-top: 28px;
+  padding-bottom: 28px;
+  font-size: 0.85rem;
+
+  .container {
+    color: var(--ink-soft);
+  }
+}
+
+/* One authored moment: page content settles in ----------------------------*/
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes settle {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .post-header {
+    animation: settle 0.7s var(--ease) both;
+  }
+
+  article {
+    animation: settle 0.7s 0.1s var(--ease) both;
+  }
+}
