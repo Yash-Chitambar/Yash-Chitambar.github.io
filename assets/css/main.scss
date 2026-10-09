@@ -342,6 +342,15 @@ html[data-theme="dark"] .text-links a:hover {
       box-shadow: 0 12px 28px -14px rgba(30, 80, 240, 0.35);
     }
 
+    .card-img-top {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      border-bottom: 1px solid var(--blue-line);
+    }
+
     .card-body {
       padding: 1.5rem;
     }
@@ -365,6 +374,17 @@ html[data-theme="dark"] .text-links a:hover {
     &:hover .card-title {
       color: var(--blue);
     }
+  }
+}
+
+.projects .card figure {
+  margin: 0;
+
+  img {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
   }
 }
 
@@ -450,6 +470,90 @@ html[data-theme="dark"] .publications ol.bibliography li {
   .links a.btn:hover {
     color: #0a1124;
   }
+}
+
+/* Project posts: figures, tables, headings --------------------------------*/
+article figure {
+  margin: 2rem 0;
+
+  img {
+    display: block;
+    width: 100%;
+    height: auto;
+    padding: 0.75rem;
+    background: #ffffff;
+    border: 1px solid var(--blue-line);
+    border-radius: 12px;
+  }
+
+  figcaption {
+    margin-top: 0.6rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: 68ch;
+  }
+}
+
+article figure video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: #fcfcfa;
+  border: 1px solid var(--blue-line);
+  border-radius: 12px;
+}
+
+article h2 {
+  margin-top: 2.75rem;
+  margin-bottom: 0.9rem;
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+
+article h3 {
+  margin-top: 2rem;
+  font-size: 1.15rem;
+}
+
+article ul,
+article ol {
+  max-width: 68ch;
+}
+
+article li {
+  margin-bottom: 0.4rem;
+}
+
+article table:not(.table) {
+  display: block;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  font-size: 0.95rem;
+
+  th {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  td,
+  th {
+    border-top: 1px solid var(--blue-line);
+    padding: 0.6rem 1.25rem 0.6rem 0;
+    vertical-align: top;
+  }
+}
+
+article code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--blue);
+  background: var(--blue-tint);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
 }
 
 /* Footer: no copyright line, just breathing room ---------------------------*/
