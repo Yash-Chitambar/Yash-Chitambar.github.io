@@ -521,6 +521,19 @@ article figure video {
   border-radius: 12px;
 }
 
+article figure.portrait video {
+  max-width: 340px;
+  margin: 0 auto;
+  aspect-ratio: 9 / 16;
+  background: #0b1b3a;
+}
+
+article figure.portrait figcaption {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 340px;
+}
+
 article h2 {
   margin-top: 2.75rem;
   margin-bottom: 0.9rem;
