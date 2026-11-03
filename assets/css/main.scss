@@ -535,10 +535,11 @@ html.is-home {
     .abbr abbr.badge,
     .abbr abbr {
       font-family: var(--font-mono);
-      font-size: 0.66rem;
+      font-size: 0.6rem;
       font-weight: 500;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
+      white-space: nowrap;
       background: transparent;
       color: var(--blue) !important;
       border: 1px solid var(--blue-dim);
