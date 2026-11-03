@@ -1,0 +1,57 @@
+---
+layout: default
+---
+{% comment %}
+  Local override of al_folio_core's page layout. Adds an optional ASCII scene
+  panel under the page header: set `scene: lorenz|pendulum|blackhole`, `index`
+  and `scene_label` in the page's front matter.
+{% endcomment %}
+<script>
+  if (typeof setThemeSetting === 'function') setThemeSetting('dark');
+</script>
+
+{% if page._styles %}
+  <!-- Page/Post style -->
+  <style type="text/css">
+    {{ page._styles }}
+  </style>
+{% endif %}
+
+<div class="post">
+  <header class="post-header">
+    {% if page.index %}
+      <p class="eyebrow">
+        <span class="num">[ {{ page.index }} ]</span> {{ page.scene_label }}
+      </p>
+    {% endif %}
+    <h1 class="post-title">{{ page.title }}</h1>
+    {% if page.description %}
+      <p class="post-description">{{ page.description }}</p>
+    {% endif %}
+  </header>
+
+  {% if page.scene %}
+    <div class="scene-panel" aria-hidden="true">
+      <canvas data-scene="{{ page.scene }}" data-font="10"></canvas>
+    </div>
+  {% endif %}
+
+  <article>
+    {{ content }}
+  </article>
+
+  {% if page.related_publications %}
+    <h2>References</h2>
+    <div class="publications">
+      {% bibliography --cited_in_order %}
+    </div>
+  {% endif %}
+
+  {% if site.plugins contains 'al_comments' %}
+    {% include plugins/al_comments.liquid %}
+  {% endif %}
+</div>
+
+{% if page.scene %}
+  <script src="{{ '/assets/js/ascii-field.js' | relative_url | bust_file_cache }}"></script>
+{% endif %}
