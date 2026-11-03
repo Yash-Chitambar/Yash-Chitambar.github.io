@@ -6,8 +6,8 @@ description: Robot learning, world models, and the systems around them.
 nav: true
 nav_order: 2
 index: "02"
-scene: lorenz
-scene_label: lorenz · rk4
+scene: robot-cube
+scene_label: in-hand manipulation
 ---
 
 <div class="project-list">

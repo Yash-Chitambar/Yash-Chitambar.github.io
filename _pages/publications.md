@@ -6,8 +6,8 @@ description: Research, newest first.
 nav: true
 nav_order: 1
 index: "03"
-scene: pendulum
-scene_label: double pendulum · rk4
+scene: robot-wave
+scene_label: hello
 ---
 
 <div class="publications">
