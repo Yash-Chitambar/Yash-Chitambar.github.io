@@ -463,25 +463,39 @@
 
   /* ------------------------------------------------------------- humanoid */
 
-  // A humanoid in the style of current general-purpose robots: glossy egg visor,
-  // fabric-covered torso, black joint pods, articulated five-finger hands.
-  // Upper body only. Drawn with canvas shapes into the offscreen cell buffer;
-  // the head and face mark follow the cursor. On load, particles rise from the
-  // bottom of the panel and settle into the figure.
+  // An upper-body humanoid in the style of current general-purpose robots:
+  // glossy visor with a light halo, hard chest shell over a dark abdomen,
+  // shoulder sockets, tapered arm shells with black joints, mechanical hands.
+  // Drawn with canvas shapes into the offscreen cell buffer; the head follows
+  // the cursor. On load the dots rise from below and settle into the figure,
+  // and afterwards a quiet stream keeps flowing up into the body.
   function humanoid(pose) {
     let look = { x: 0, y: 0 };
-    let u = 1; // world unit in cells; the figure is ~24 units from crown to waist
+    let u = 1; // world unit in cells; the figure is ~24 units from crown to the panel's bottom
     let ox = 0,
       oy = 0;
     let temp = null;
     const ASSEMBLE = 2.6; // seconds for the particles to settle
+
+    // the perpetual stream: particles rising from below the waist
+    const NP = 170;
+    const P = new Float32Array(NP * 4); // x, y, speed, phase
+    let seed = 29;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const respawn = (i, y) => {
+      P[i * 4] = (rnd() - 0.5) * 9;
+      P[i * 4 + 1] = y;
+      P[i * 4 + 2] = 2.2 + rnd() * 2.6;
+      P[i * 4 + 3] = rnd() * 6.28;
+    };
+    for (let i = 0; i < NP; i++) respawn(i, 14 + rnd() * 12);
 
     return {
       warp: false,
       layout(f) {
         u = Math.min(f.rows / 24.5, f.cols / 20);
         ox = f.cols * 0.44; // the raised right arm needs room
-        oy = f.rows / 2 - 11.6 * u;
+        oy = f.rows / 2 - 11.8 * u;
         temp = new Float32Array(f.cols * f.rows);
       },
       update(f, dt) {
@@ -494,6 +508,11 @@
         const k = Math.min(1, dt * 5);
         look.x += (tx - look.x) * k;
         look.y += (ty - look.y) * k;
+        for (let i = 0; i < NP; i++) {
+          P[i * 4 + 1] -= P[i * 4 + 2] * dt;
+          P[i * 4] += Math.sin(f.t * 1.7 + P[i * 4 + 3]) * dt * 0.6;
+          if (P[i * 4 + 1] < 13.5) respawn(i, 25.5 + rnd() * 3);
+        }
       },
       draw(f) {
         const g = f.octx;
@@ -503,11 +522,11 @@
         g.setTransform(u, 0, 0, u, ox, oy);
         g.lineCap = "round";
         g.lineJoin = "round";
-        const breathe = Math.sin(t * 1.1) * 0.08;
+        const breathe = Math.sin(t * 1.1) * 0.06;
         const W = (v) => `rgba(255,255,255,${clamp(v, 0, 1)})`;
 
-        // matte fabric: lit from the upper right
-        const fabric = (x0, y0, x1, y1, lo, hi) => {
+        // hard shell: lit from the upper right
+        const shell = (x0, y0, x1, y1, lo, hi) => {
           const gr = g.createLinearGradient(x0, y0, x1, y1);
           gr.addColorStop(0, W(lo));
           gr.addColorStop(1, W(hi));
@@ -527,219 +546,278 @@
           g.arc(x, y, r, 0, Math.PI * 2);
           g.fill();
         };
-        // black pod: dark body with a small specular
-        const pod = (x, y, r) => {
-          dot(x, y, r, W(0.16));
-          dot(x + r * 0.35, y - r * 0.35, r * 0.32, W(0.42));
+        const poly = (pts, style) => {
+          g.fillStyle = style;
+          g.beginPath();
+          g.moveTo(pts[0][0], pts[0][1]);
+          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+          g.closePath();
+          g.fill();
         };
-        // fabric limb segment with a dark seam at each end
-        const seg = (x1, y1, x2, y2, w, lo, hi) => {
-          const nx = -(y2 - y1),
-            ny = x2 - x1;
-          const len = Math.hypot(nx, ny) || 1;
-          stroke(
-            x1,
-            y1,
-            x2,
-            y2,
-            w,
-            fabric(x1 + (nx / len) * w * 0.5, y1 + (ny / len) * w * 0.5, x1 - (nx / len) * w * 0.5, y1 - (ny / len) * w * 0.5, lo, hi)
+        // tapered shell segment from (x1,y1) width w1 to (x2,y2) width w2, with rounded ends
+        const tapered = (x1, y1, w1, x2, y2, w2, lo, hi) => {
+          const dx = x2 - x1,
+            dy = y2 - y1;
+          const len = Math.hypot(dx, dy) || 1;
+          const nx = -dy / len,
+            ny = dx / len;
+          const style = shell(x1 + nx * w1, y1 + ny * w1, x1 - nx * w1, y1 - ny * w1, lo, hi);
+          poly(
+            [
+              [x1 + (nx * w1) / 2, y1 + (ny * w1) / 2],
+              [x2 + (nx * w2) / 2, y2 + (ny * w2) / 2],
+              [x2 - (nx * w2) / 2, y2 - (ny * w2) / 2],
+              [x1 - (nx * w1) / 2, y1 - (ny * w1) / 2],
+            ],
+            style
           );
+          dot(x1, y1, w1 / 2, style);
+          dot(x2, y2, w2 / 2, style);
         };
-        // articulated hand: palm plus five two-segment fingers. `a` is the
-        // direction the fingers point (radians, 0 = up), `curl` closes them.
-        const hand = (hx, hy, a, curl, scale) => {
-          const sc = scale || 1;
-          dot(hx, hy, 0.85 * sc, W(0.2));
-          dot(hx + 0.2 * sc, hy - 0.2 * sc, 0.4 * sc, W(0.34));
+        // black mechanical joint with a specular glint
+        const joint = (x, y, r) => {
+          dot(x, y, r, W(0.13));
+          dot(x + r * 0.3, y - r * 0.3, r * 0.3, W(0.4));
+        };
+        // mechanical hand: dark palm, five two-segment fingers with pale knuckles.
+        // `a` is the direction the fingers point (radians, 0 = up), `curl` closes them.
+        const hand = (hx, hy, a, curl) => {
+          dot(hx, hy, 0.78, W(0.2));
+          dot(hx + 0.15, hy - 0.2, 0.36, W(0.3));
           const finger = (base, len1, len2, w) => {
             const fa = a + base;
-            const j1x = hx + Math.sin(fa) * len1 * sc,
-              j1y = hy - Math.cos(fa) * len1 * sc;
+            const j1x = hx + Math.sin(fa) * len1,
+              j1y = hy - Math.cos(fa) * len1;
             const fb = fa + curl * 0.9;
-            const tipx = j1x + Math.sin(fb) * len2 * sc,
-              tipy = j1y - Math.cos(fb) * len2 * sc;
-            stroke(hx + Math.sin(fa) * 0.5 * sc, hy - Math.cos(fa) * 0.5 * sc, j1x, j1y, w * sc, W(0.24));
-            stroke(j1x, j1y, tipx, tipy, w * 0.85 * sc, W(0.28));
-            dot(j1x, j1y, w * 0.42 * sc, W(0.14));
+            const tipx = j1x + Math.sin(fb) * len2,
+              tipy = j1y - Math.cos(fb) * len2;
+            stroke(hx + Math.sin(fa) * 0.5, hy - Math.cos(fa) * 0.5, j1x, j1y, w, W(0.42));
+            stroke(j1x, j1y, tipx, tipy, w * 0.85, W(0.42));
+            dot(j1x, j1y, w * 0.45, W(0.16));
           };
-          finger(-0.42, 1.25, 0.9, 0.4);
-          finger(-0.14, 1.45, 1.0, 0.42);
-          finger(0.14, 1.4, 1.0, 0.42);
-          finger(0.42, 1.2, 0.85, 0.4);
-          // thumb
+          finger(-0.4, 1.15, 0.85, 0.36);
+          finger(-0.13, 1.35, 0.95, 0.38);
+          finger(0.13, 1.3, 0.95, 0.38);
+          finger(0.4, 1.1, 0.8, 0.36);
           const ta = a - 1.25;
-          const t1x = hx + Math.sin(ta) * 0.95 * sc,
-            t1y = hy - Math.cos(ta) * 0.95 * sc;
-          stroke(hx, hy, t1x, t1y, 0.44 * sc, W(0.24));
-          stroke(t1x, t1y, t1x + Math.sin(ta + 0.9 + curl) * 0.7 * sc, t1y - Math.cos(ta + 0.9 + curl) * 0.7 * sc, 0.38 * sc, W(0.28));
+          const t1x = hx + Math.sin(ta) * 0.9,
+            t1y = hy - Math.cos(ta) * 0.9;
+          stroke(hx, hy, t1x, t1y, 0.4, W(0.42));
+          stroke(t1x, t1y, t1x + Math.sin(ta + 0.9 + curl) * 0.65, t1y - Math.cos(ta + 0.9 + curl) * 0.65, 0.34, W(0.42));
         };
 
-        // ---- torso: broad sloped shoulders, tapering to the waist
-        const sy = 7.2 + breathe * 0.3;
-        g.fillStyle = fabric(-5, 20, 4, 8, 0.3, 0.58);
-        g.beginPath();
-        g.moveTo(-1.6, sy - 0.3);
-        g.quadraticCurveTo(-3.9, sy - 0.1, -4.9, sy + 1.4); // left shoulder slope
-        g.quadraticCurveTo(-4.7, 13.5, -3.3, 19.3);
-        g.quadraticCurveTo(-1.8, 20.3, 0, 20.4); // waist
-        g.quadraticCurveTo(1.8, 20.3, 3.3, 19.3);
-        g.quadraticCurveTo(4.7, 13.5, 4.9, sy + 1.4);
-        g.quadraticCurveTo(3.9, sy - 0.1, 1.6, sy - 0.3);
-        g.closePath();
-        g.fill();
-        // shoulder caps
-        dot(-4.6, sy + 2.3, 1.25, fabric(-5.8, sy + 3, -3.4, sy + 1.3, 0.28, 0.5));
-        dot(4.6, sy + 2.3, 1.25, fabric(3.4, sy + 3, 5.8, sy + 1.3, 0.32, 0.56));
-        // raglan seams and collar
-        stroke(-1.6, sy - 0.3, -3.6, sy + 3.6, 0.16, W(0.14));
-        stroke(1.6, sy - 0.3, 3.6, sy + 3.6, 0.16, W(0.14));
-        stroke(-2.2, 14.6, 2.2, 14.6, 0.14, W(0.16)); // chest plate seam
-        // status light on the collar and the chest mark
-        stroke(-0.45, sy + 0.45, 0.45, sy + 0.45, 0.22, W(0.7 + 0.3 * Math.sin(t * 2)));
-        g.fillStyle = W(0.95);
-        g.fillRect(-0.55, 10.2, 0.6, 0.6);
-        g.fillRect(-0.05, 10.8, 0.6, 0.6);
-        g.fillRect(-0.55, 11.4, 0.6, 0.6);
-        // pelvis: black, cut by the bottom of the panel
-        g.fillStyle = W(0.14);
-        g.beginPath();
-        g.moveTo(-3.0, 19.7);
-        g.quadraticCurveTo(0, 21.2, 3.0, 19.7);
-        g.lineTo(4.0, 24.5);
-        g.lineTo(-4.0, 24.5);
-        g.closePath();
-        g.fill();
+        const sy = 7.0 + breathe * 0.3; // top of the chest
 
-        // ---- left arm (viewer's left): relaxed, slight sway
+        // ---- shoulder sockets: dark, under the shells
+        dot(-4.5, sy + 2.0, 1.5, W(0.13));
+        dot(4.5, sy + 2.0, 1.5, W(0.13));
+
+        // ---- abdomen: dark, flexible section under the chest shell
+        poly(
+          [
+            [-3.5, 12.8],
+            [3.5, 12.8],
+            [3.0, 18.6],
+            [-3.0, 18.6],
+          ],
+          W(0.14)
+        );
+        stroke(-2.6, 15.2, 2.6, 15.2, 0.12, W(0.22));
+        stroke(-2.7, 16.6, 2.7, 16.6, 0.12, W(0.22));
+
+        // ---- chest shell: clavicle line, pectoral contours, V cut at the bottom
+        g.fillStyle = shell(-4.5, 14, 4, 7, 0.34, 0.66);
+        g.beginPath();
+        g.moveTo(-1.5, sy);
+        g.lineTo(-3.9, sy + 0.35); // left clavicle
+        g.quadraticCurveTo(-4.7, sy + 0.9, -4.6, sy + 2.3); // shoulder edge
+        g.lineTo(-4.3, 11.6); // flank, nearly straight
+        g.quadraticCurveTo(-4.2, 13.5, -3.3, 14.1); // lower corner
+        g.lineTo(-0.7, 14.9); // shallow V
+        g.lineTo(0, 15.05);
+        g.lineTo(0.7, 14.9);
+        g.lineTo(3.3, 14.1);
+        g.quadraticCurveTo(4.2, 13.5, 4.3, 11.6);
+        g.lineTo(4.6, sy + 2.3);
+        g.quadraticCurveTo(4.7, sy + 0.9, 3.9, sy + 0.35);
+        g.lineTo(1.5, sy);
+        g.closePath();
+        g.fill();
+        // pectoral contours and the center seam
+        g.strokeStyle = W(0.2);
+        g.lineWidth = 0.14;
+        g.beginPath();
+        g.moveTo(-3.9, 11.2);
+        g.quadraticCurveTo(-2.2, 12.8, -0.4, 11.6);
+        g.moveTo(3.9, 11.2);
+        g.quadraticCurveTo(2.2, 12.8, 0.4, 11.6);
+        g.stroke();
+        stroke(0, sy + 1.6, 0, 11.2, 0.12, W(0.22));
+        stroke(-1.1, sy + 0.9, 1.1, sy + 0.9, 0.16, W(0.78 + 0.22 * Math.sin(t * 2))); // collar light
+
+        // ---- pelvis shell and hip joints, cut by the bottom of the panel
+        g.fillStyle = shell(-3, 20, 3, 17, 0.28, 0.5);
+        g.beginPath();
+        g.moveTo(-3.1, 18.2);
+        g.lineTo(3.1, 18.2);
+        g.quadraticCurveTo(3.6, 20.8, 2.4, 21.6);
+        g.lineTo(-2.4, 21.6);
+        g.quadraticCurveTo(-3.6, 20.8, -3.1, 18.2);
+        g.closePath();
+        g.fill();
+        joint(-2.0, 22.6, 1.0);
+        joint(2.0, 22.6, 1.0);
+        poly(
+          [
+            [-2.8, 22.8],
+            [-1.1, 22.8],
+            [-1.3, 25],
+            [-3.0, 25],
+          ],
+          W(0.16)
+        );
+        poly(
+          [
+            [1.1, 22.8],
+            [2.8, 22.8],
+            [3.0, 25],
+            [1.3, 25],
+          ],
+          W(0.16)
+        );
+
+        // ---- arms
+        const arm = (side, elx, ely, wrx, wry) => {
+          const shx = side * 4.6,
+            shy = sy + 2.0;
+          // upper arm shell, tapering to the elbow
+          tapered(shx, shy, 1.9, elx, ely, 1.35, 0.28, 0.58);
+          dot(shx, shy, 1.1, shell(shx - 1, shy + 1, shx + 1, shy - 1, 0.32, 0.62)); // shoulder cap
+          joint(elx, ely, 0.72);
+          // forearm shell, tapering to the wrist, with a dark actuator window
+          tapered(elx, ely, 1.3, wrx, wry, 0.95, 0.26, 0.56);
+          const mx = (elx + wrx) / 2,
+            my = (ely + wry) / 2;
+          const dx = wrx - elx,
+            dy = wry - ely;
+          const len = Math.hypot(dx, dy) || 1;
+          stroke(mx - (dx / len) * 1.2, my - (dy / len) * 1.2, mx + (dx / len) * 1.2, my + (dy / len) * 1.2, 0.5, W(0.14));
+          joint(wrx, wry, 0.52);
+        };
+
+        // left arm (viewer's left): hanging, slight sway
         {
           const sw = Math.sin(t * 0.9) * 0.1;
-          const shx = -4.7,
-            shy = sy + 2.6;
-          const elx = -5.5 + sw,
-            ely = 14.2;
-          const wrx = -5.8 + sw * 2,
+          const elx = -5.6 + sw,
+            ely = 14.0;
+          const wrx = -5.9 + sw * 2,
             wry = 19.4;
-          seg(shx, shy, elx, ely, 1.5, 0.26, 0.5);
-          pod(elx, ely, 0.78);
-          seg(elx, ely, wrx, wry, 1.25, 0.24, 0.46);
-          pod(wrx, wry, 0.58);
-          hand(wrx - 0.1, wry + 1.3, Math.PI + 0.15, 0.35, 0.95);
+          arm(-1, elx, ely, wrx, wry);
+          hand(wrx - 0.1, wry + 1.25, Math.PI + 0.15, 0.4);
         }
-
-        // ---- right arm: wave, or hold a cube
-        {
-          const shx = 4.7,
-            shy = sy + 2.6;
-          if (pose === "wave") {
-            const a = Math.sin(t * 5.2) * 0.42; // forearm swing
-            const elx = shx + 2.6,
-              ely = shy + 2.8;
-            const wrx = elx + Math.sin(a + 0.28) * 5.0,
-              wry = ely - Math.cos(a + 0.28) * 5.0;
-            seg(shx, shy, elx, ely, 1.5, 0.26, 0.5);
-            pod(elx, ely, 0.78);
-            seg(elx, ely, wrx, wry, 1.25, 0.24, 0.46);
-            pod(wrx, wry, 0.58);
-            hand(wrx + Math.sin(a + 0.28) * 1.1, wry - Math.cos(a + 0.28) * 1.1, a + 0.28, 0.05, 1);
-          } else {
-            const elx = shx + 2.3,
-              ely = shy + 4.6;
-            const lift = Math.sin(t * 1.4) * 0.12;
-            const wrx = elx + 0.7,
-              wry = ely - 4.2 + lift;
-            seg(shx, shy, elx, ely, 1.5, 0.26, 0.5);
-            pod(elx, ely, 0.78);
-            seg(elx, ely, wrx, wry, 1.25, 0.24, 0.46);
-            pod(wrx, wry, 0.58);
-            // palm up, fingers curled slightly around the cube
-            hand(wrx + 0.2, wry - 0.9, -0.2, 0.55, 1);
-            const ca = t * 0.9,
-              cb = t * 0.55;
-            const cxp = wrx + 0.3,
-              cyp = wry - 2.9 + lift;
-            const size = 1.15;
-            const pts = [];
-            for (let i = 0; i < 8; i++) {
-              const x = i & 1 ? 1 : -1,
-                y = i & 2 ? 1 : -1,
-                z = i & 4 ? 1 : -1;
-              const x1 = x * Math.cos(ca) + z * Math.sin(ca);
-              let z1 = -x * Math.sin(ca) + z * Math.cos(ca);
-              const y1 = y * Math.cos(cb) - z1 * Math.sin(cb);
-              z1 = y * Math.sin(cb) + z1 * Math.cos(cb);
-              const pr = 1 / (1 + z1 * 0.18);
-              pts.push([cxp + x1 * size * pr, cyp + y1 * size * pr, z1]);
-            }
-            const edges = [
-              [0, 1],
-              [1, 3],
-              [3, 2],
-              [2, 0],
-              [4, 5],
-              [5, 7],
-              [7, 6],
-              [6, 4],
-              [0, 4],
-              [1, 5],
-              [2, 6],
-              [3, 7],
-            ];
-            for (const [a1, b1] of edges) {
-              const v = 0.5 + 0.45 * ((pts[a1][2] + pts[b1][2]) / 4 + 0.5);
-              stroke(pts[a1][0], pts[a1][1], pts[b1][0], pts[b1][1], 0.3, W(v));
-            }
-            for (const pt of pts) dot(pt[0], pt[1], 0.24, W(0.6 + 0.4 * (pt[2] / 2 + 0.5)));
+        // right arm: wave, or hold a cube
+        if (pose === "wave") {
+          const a = Math.sin(t * 5.2) * 0.42;
+          const elx = 4.6 + 2.6,
+            ely = sy + 2.0 + 2.9;
+          const dir = a + 0.28;
+          const wrx = elx + Math.sin(dir) * 5.0,
+            wry = ely - Math.cos(dir) * 5.0;
+          arm(1, elx, ely, wrx, wry);
+          hand(wrx + Math.sin(dir) * 1.05, wry - Math.cos(dir) * 1.05, dir, 0.05);
+        } else {
+          const lift = Math.sin(t * 1.4) * 0.12;
+          const elx = 4.6 + 2.3,
+            ely = sy + 2.0 + 4.7;
+          const wrx = elx + 0.7,
+            wry = ely - 4.2 + lift;
+          arm(1, elx, ely, wrx, wry);
+          hand(wrx + 0.2, wry - 0.9, -0.2, 0.55);
+          const ca = t * 0.9,
+            cb = t * 0.55;
+          const cxp = wrx + 0.3,
+            cyp = wry - 2.9 + lift;
+          const size = 1.15;
+          const pts = [];
+          for (let i = 0; i < 8; i++) {
+            const x = i & 1 ? 1 : -1,
+              y = i & 2 ? 1 : -1,
+              z = i & 4 ? 1 : -1;
+            const x1 = x * Math.cos(ca) + z * Math.sin(ca);
+            let z1 = -x * Math.sin(ca) + z * Math.cos(ca);
+            const y1 = y * Math.cos(cb) - z1 * Math.sin(cb);
+            z1 = y * Math.sin(cb) + z1 * Math.cos(cb);
+            const pr = 1 / (1 + z1 * 0.18);
+            pts.push([cxp + x1 * size * pr, cyp + y1 * size * pr, z1]);
           }
+          const edges = [
+            [0, 1],
+            [1, 3],
+            [3, 2],
+            [2, 0],
+            [4, 5],
+            [5, 7],
+            [7, 6],
+            [6, 4],
+            [0, 4],
+            [1, 5],
+            [2, 6],
+            [3, 7],
+          ];
+          for (const [a1, b1] of edges) {
+            const v = 0.5 + 0.45 * ((pts[a1][2] + pts[b1][2]) / 4 + 0.5);
+            stroke(pts[a1][0], pts[a1][1], pts[b1][0], pts[b1][1], 0.3, W(v));
+          }
+          for (const pt of pts) dot(pt[0], pt[1], 0.24, W(0.6 + 0.4 * (pt[2] / 2 + 0.5)));
         }
 
         // ---- neck and head, turned toward the cursor
-        g.fillStyle = fabric(-1.2, 6, 1.2, 6, 0.22, 0.4);
-        g.beginPath();
-        g.moveTo(-1.05, 5.6);
-        g.lineTo(1.05, 5.6);
-        g.lineTo(1.6, sy + 0.2);
-        g.lineTo(-1.6, sy + 0.2);
-        g.closePath();
-        g.fill();
+        poly(
+          [
+            [-0.9, 5.3],
+            [0.9, 5.3],
+            [1.2, sy + 0.3],
+            [-1.2, sy + 0.3],
+          ],
+          W(0.18)
+        );
         const hx0 = look.x * 0.7,
-          hy0 = 3.3 + breathe * 0.2 + look.y * 0.3;
+          hy0 = 3.0 + breathe * 0.2 + look.y * 0.3;
         g.save();
         g.translate(hx0, hy0);
         g.rotate(look.x * 0.14);
-        // egg visor: glossy black, specular highlight on the upper left
-        g.fillStyle = W(0.17);
+        // visor: glossy black egg with a soft highlight on the upper left
+        g.fillStyle = W(0.16);
         g.beginPath();
-        g.ellipse(0, 0, 2.45, 3.2, 0, 0, Math.PI * 2);
+        g.ellipse(0, 0, 2.3, 3.0, 0, 0, Math.PI * 2);
         g.fill();
-        g.fillStyle = W(0.12);
-        g.beginPath();
-        g.ellipse(0, 1.0, 2.2, 2.3, 0, 0, Math.PI); // darker chin
-        g.fill();
-        const hl = g.createRadialGradient(-1.0, -1.6, 0.2, -1.0, -1.6, 2.2);
-        hl.addColorStop(0, W(0.5));
+        const hl = g.createRadialGradient(-0.9, -1.5, 0.2, -0.9, -1.5, 2.1);
+        hl.addColorStop(0, W(0.42));
         hl.addColorStop(1, W(0));
         g.fillStyle = hl;
         g.beginPath();
-        g.ellipse(0, 0, 2.45, 3.2, 0, 0, Math.PI * 2);
+        g.ellipse(0, 0, 2.3, 3.0, 0, 0, Math.PI * 2);
         g.fill();
-        // sensor dot and the face mark, which glances with the cursor
-        dot(0.35, -1.7, 0.22, W(0.55));
-        const mx = look.x * 0.45,
-          my = look.y * 0.3;
-        const blink = (t * 0.45) % 1 > 0.94 ? 0.2 : 1;
-        g.fillStyle = W(1);
-        g.fillRect(-0.55 + mx, -0.4 + my, 0.55, 0.55 * blink);
-        g.fillRect(0.0 + mx, 0.15 + my, 0.55, 0.55 * blink);
+        // light halo tracing the face edge, brighter where it faces the cursor
+        g.strokeStyle = W(0.85);
+        g.lineWidth = 0.2;
+        g.beginPath();
+        g.ellipse(0.25 + look.x * 0.3, -0.1, 1.55, 2.25, 0, Math.PI * 1.15, Math.PI * 1.95);
+        g.stroke();
+        g.strokeStyle = W(0.45);
+        g.beginPath();
+        g.ellipse(0.25 + look.x * 0.3, -0.1, 1.55, 2.25, 0, Math.PI * 0.05, Math.PI * 0.55);
+        g.stroke();
+        dot(0.35, -1.5, 0.2, W(0.5)); // sensor
         g.restore();
 
-        // ---- read back, then the assembly effect: particles rise into place
+        // ---- read back; then the assembly effect and the perpetual stream
         f.readOffscreen(1);
+        const buf = f.buf,
+          cols = f.cols,
+          rows = f.rows;
         const p = REDUCED ? 1 : clamp(t / ASSEMBLE, 0, 1);
         if (p < 1) {
-          const buf = f.buf,
-            cols = f.cols,
-            rows = f.rows;
           temp.set(buf);
           buf.fill(0);
           for (let r = 0; r < rows; r++) {
@@ -749,18 +827,30 @@
               // bottom rows settle first; each cell has its own small delay
               const h = ((c * 374761393 + r * 668265263) ^ 0x5bd1e995) >>> 0;
               const jit = (h % 1000) / 1000;
-              const order = 1 - r / rows; // 0 at the bottom, 1 at the top
+              const order = 1 - r / rows;
               const q = clamp((p - order * 0.55 - jit * 0.25) / 0.3, 0, 1);
               const e = 1 - Math.pow(1 - q, 3);
               const dx = Math.sin(h % 360) * 10 * (1 - e);
               const dy = (rows - r + 12) * (1 - e);
-              const x = c + dx,
-                y = r + dy;
-              const cx2 = Math.round(x),
-                cy2 = Math.round(y);
+              const cx2 = Math.round(c + dx),
+                cy2 = Math.round(r + dy);
               if (cx2 < 0 || cy2 < 0 || cx2 >= cols || cy2 >= rows) continue;
               buf[cy2 * cols + cx2] += v * (0.35 + 0.65 * e);
             }
+          }
+        }
+        // stream: faint at the bottom, brightening as it rises, merging into the body
+        if (!REDUCED) {
+          const gain = p < 1 ? p : 1;
+          for (let i = 0; i < NP; i++) {
+            const x = P[i * 4],
+              y = P[i * 4 + 1];
+            const c = Math.round(ox + x * u),
+              r = Math.round(oy + y * u);
+            if (c < 0 || r < 0 || c >= cols || r >= rows) continue;
+            const rise = clamp((25 - y) / 9, 0, 1); // 0 at the bottom, 1 near the waist
+            const v = (0.06 + 0.7 * rise * rise) * (0.7 + 0.3 * Math.sin(t * 5 + P[i * 4 + 3])) * gain;
+            buf[r * cols + c] += v;
           }
         }
       },
