@@ -165,6 +165,7 @@
       const dt = Math.min(0.05, (now - this.last) / 1000);
       this.last = now;
       this.t += dt;
+      this.dt = dt;
       const t0 = performance.now();
       this.buf.fill(0);
       this.scene.update(this, dt);
@@ -474,21 +475,48 @@
     let u = 1; // world unit in cells; crown ~0, waist ~16, bottom of panel ~24.5
     let ox = 0,
       oy = 0;
-    let temp = null;
+    let temp = null,
+      fill = null;
     const ASSEMBLE = 2.6; // seconds for the particles to settle
 
-    // the stream: particles rising from the bottom, funnelling into the waist
-    const NP = 260;
-    const P = new Float32Array(NP * 4); // x, y, speed, phase
+    // the stream: particles with real trajectories. Incoming ones fly from below
+    // and from the left toward a cell on the body and land there; a few leave the
+    // body as dust and drift off. Positions are in cells.
+    const NP = 700;
+    const P = new Float32Array(NP * 9); // x, y, vx, vy, tx, ty, age, kind, seed
+    let lit = new Int32Array(0),
+      litN = 0;
     let seed = 29;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const respawn = (i, y) => {
-      P[i * 4] = (rnd() - 0.5) * 14;
-      P[i * 4 + 1] = y;
-      P[i * 4 + 2] = 2.0 + rnd() * 2.8;
-      P[i * 4 + 3] = rnd() * 6.28;
+    const pick = () => (litN ? lit[(rnd() * litN) | 0] : 0);
+    const spawn = (i, f, leaving) => {
+      const o = i * 9;
+      const idx = pick();
+      const cx = (idx % f.cols) + 0.5,
+        cy = Math.floor(idx / f.cols) + 0.5;
+      if (leaving) {
+        P[o] = cx;
+        P[o + 1] = cy;
+        P[o + 2] = -(8 + rnd() * 22) * (f.rows / 190);
+        P[o + 3] = -(4 + rnd() * 16) * (f.rows / 190);
+      } else if (rnd() < 0.7) {
+        P[o] = rnd() * f.cols; // from below the panel
+        P[o + 1] = f.rows + 3 + rnd() * 30;
+        P[o + 2] = 0;
+        P[o + 3] = -20 * (f.rows / 190);
+      } else {
+        P[o] = -4 - rnd() * 25; // from the left, mid height
+        P[o + 1] = f.rows * (0.3 + rnd() * 0.65);
+        P[o + 2] = 20 * (f.rows / 190);
+        P[o + 3] = 0;
+      }
+      P[o + 4] = cx;
+      P[o + 5] = cy;
+      P[o + 6] = 0;
+      P[o + 7] = leaving ? 1 : 0;
+      P[o + 8] = rnd() * 6.28;
     };
-    for (let i = 0; i < NP; i++) respawn(i, 15 + rnd() * 12);
+    let spawned = false;
     const hash = (c, r) => ((((c * 374761393 + r * 668265263) ^ 0x5bd1e995) >>> 0) % 1000) / 1000;
 
     return {
@@ -498,6 +526,8 @@
         ox = f.cols * 0.44; // the raised right arm needs room
         oy = f.rows / 2 - 12.0 * u;
         temp = new Float32Array(f.cols * f.rows);
+        fill = new Float32Array(f.cols * f.rows);
+        spawned = false;
       },
       update(f, dt) {
         let tx = 0,
@@ -509,12 +539,6 @@
         const k = Math.min(1, dt * 5);
         look.x += (tx - look.x) * k;
         look.y += (ty - look.y) * k;
-        for (let i = 0; i < NP; i++) {
-          const y = (P[i * 4 + 1] -= P[i * 4 + 2] * dt);
-          // drift toward the center line as they climb, with a little wander
-          P[i * 4] += (-P[i * 4] * 0.35 + Math.sin(f.t * 1.7 + P[i * 4 + 3]) * 0.6) * dt;
-          if (y < 14.5) respawn(i, 25 + rnd() * 4);
-        }
       },
       draw(f) {
         const g = f.octx;
@@ -525,7 +549,11 @@
         g.lineCap = "round";
         g.lineJoin = "round";
         const breathe = Math.sin(t * 1.1) * 0.06;
-        const W = (v) => `rgba(255,255,255,${clamp(v, 0, 1)})`;
+        const W = (v) => {
+          const g8 = Math.round(clamp(v, 0, 1) * 255);
+          return `rgb(${g8},${g8},${g8})`;
+        };
+        const WA = (v) => `rgba(255,255,255,${clamp(v, 0, 1)})`;
 
         const shell = (x0, y0, x1, y1, lo, hi) => {
           const gr = g.createLinearGradient(x0, y0, x1, y1);
@@ -577,32 +605,60 @@
         };
         const joint = (x, y, r) => {
           dot(x, y, r, W(0.12));
-          dot(x + r * 0.3, y - r * 0.3, r * 0.3, W(0.38));
+          dot(x + r * 0.3, y - r * 0.3, r * 0.3, W(0.34));
         };
-        // mechanical hand: dark palm, five two-segment fingers with pale knuckles
-        const hand = (hx, hy, a, curl) => {
-          dot(hx, hy, 1.0, W(0.22));
-          dot(hx + 0.2, hy - 0.25, 0.45, W(0.32));
-          const finger = (base, len1, len2, w) => {
-            const fa = a + base;
-            const j1x = hx + Math.sin(fa) * len1,
-              j1y = hy - Math.cos(fa) * len1;
-            const fb = fa + curl * 0.9;
-            const tipx = j1x + Math.sin(fb) * len2,
-              tipy = j1y - Math.cos(fb) * len2;
-            stroke(hx + Math.sin(fa) * 0.6, hy - Math.cos(fa) * 0.6, j1x, j1y, w, W(0.46));
-            stroke(j1x, j1y, tipx, tipy, w * 0.85, W(0.46));
-            dot(j1x, j1y, w * 0.45, W(0.16));
+        // mechanical hand: blocky palm, four three-segment fingers and an opposed
+        // thumb. `a` is the direction the fingers point (0 = up), `curl` closes them.
+        const hand = (hx, hy, a, curl, flip) => {
+          g.save();
+          g.translate(hx, hy);
+          g.rotate(a);
+          if (flip) g.scale(-1, 1);
+          // palm
+          g.fillStyle = shell(-1, 0, 1, 0, 0.26, 0.4);
+          g.beginPath();
+          g.roundRect(-0.95, -1.1, 1.9, 2.2, 0.45);
+          g.fill();
+          dot(0, 0.9, 0.5, W(0.14)); // wrist cup
+          stroke(-0.5, -0.2, 0.5, -0.2, 0.12, W(0.16)); // knuckle plate seam
+          const finger = (bx, spread, l1, l2, l3, w) => {
+            let x = bx,
+              y = -1.05,
+              ang = spread;
+            const segs = [l1, l2, l3];
+            for (let k = 0; k < 3; k++) {
+              ang += k === 0 ? 0 : curl * 0.75;
+              const nx = x + Math.sin(ang) * segs[k],
+                ny = y - Math.cos(ang) * segs[k];
+              stroke(x, y, nx, ny, w * (1 - k * 0.12), W(0.5));
+              dot(x, y, w * 0.38, W(0.16)); // knuckle
+              x = nx;
+              y = ny;
+            }
+            dot(x, y, w * 0.32, W(0.56)); // fingertip
           };
-          finger(-0.42, 1.35, 0.95, 0.5);
-          finger(-0.14, 1.55, 1.05, 0.52);
-          finger(0.14, 1.5, 1.05, 0.52);
-          finger(0.42, 1.3, 0.9, 0.5);
-          const ta = a - 1.2;
-          const t1x = hx + Math.sin(ta) * 1.05,
-            t1y = hy - Math.cos(ta) * 1.05;
-          stroke(hx, hy, t1x, t1y, 0.55, W(0.46));
-          stroke(t1x, t1y, t1x + Math.sin(ta + 0.9 + curl) * 0.75, t1y - Math.cos(ta + 0.9 + curl) * 0.75, 0.46, W(0.46));
+          finger(-0.68, -0.22, 0.75, 0.6, 0.45, 0.42);
+          finger(-0.23, -0.07, 0.85, 0.68, 0.5, 0.44);
+          finger(0.23, 0.07, 0.85, 0.68, 0.5, 0.44);
+          finger(0.68, 0.22, 0.75, 0.6, 0.45, 0.42);
+          // thumb from the side of the palm
+          {
+            let x = -0.95,
+              y = 0.2,
+              ang = -1.35 + curl * 0.4;
+            const segs = [0.7, 0.55];
+            for (let k = 0; k < 2; k++) {
+              const nx = x + Math.sin(ang) * segs[k],
+                ny = y - Math.cos(ang) * segs[k];
+              stroke(x, y, nx, ny, 0.46 - k * 0.06, W(0.5));
+              dot(x, y, 0.2, W(0.16));
+              x = nx;
+              y = ny;
+              ang += 0.7 + curl * 0.6;
+            }
+            dot(x, y, 0.16, W(0.56));
+          }
+          g.restore();
         };
 
         const sy = 7.4 + breathe * 0.3; // top of the chest plate
@@ -676,7 +732,7 @@
           const wrx = -6.9 + sw * 2,
             wry = 20.2;
           arm(-1, elx, ely, wrx, wry);
-          hand(wrx - 0.1, wry + 1.4, Math.PI + 0.15, 0.4);
+          hand(wrx - 0.1, wry + 1.5, Math.PI + 0.12, 0.35, true);
         }
         // right arm: wave, or hold a cube
         if (pose === "wave") {
@@ -687,7 +743,7 @@
           const wrx = elx + Math.sin(dir) * 5.4,
             wry = ely - Math.cos(dir) * 5.4;
           arm(1, elx, ely, wrx, wry);
-          hand(wrx + Math.sin(dir) * 1.2, wry - Math.cos(dir) * 1.2, dir, 0.05);
+          hand(wrx + Math.sin(dir) * 1.3, wry - Math.cos(dir) * 1.3, dir, 0.05, false);
         } else {
           const lift = Math.sin(t * 1.4) * 0.12;
           const elx = 5.5 + 2.6,
@@ -695,7 +751,7 @@
           const wrx = elx + 0.8,
             wry = ely - 4.6 + lift;
           arm(1, elx, ely, wrx, wry);
-          hand(wrx + 0.2, wry - 1.0, -0.2, 0.55);
+          hand(wrx + 0.2, wry - 1.1, -0.2, 0.5, false);
           const ca = t * 0.9,
             cb = t * 0.55;
           const cxp = wrx + 0.3,
@@ -749,59 +805,182 @@
         g.save();
         g.translate(hx0, hy0);
         g.rotate(look.x * 0.14);
-        // helmet: flat crown, straight temples, tapered jaw and chin
-        const helmet = () => {
+        // helmet shell: flat crown, straight temples, tapered jaw and chin
+        const helmet = (inset) => {
+          const k = 1 - inset;
           g.beginPath();
-          g.moveTo(-2.35, -0.6);
-          g.quadraticCurveTo(-2.3, -2.9, 0, -2.95); // crown
-          g.quadraticCurveTo(2.3, -2.9, 2.35, -0.6);
-          g.lineTo(2.3, 0.7); // temple
-          g.quadraticCurveTo(2.1, 2.3, 0.9, 2.85); // jaw
-          g.quadraticCurveTo(0, 3.05, -0.9, 2.85); // chin
-          g.quadraticCurveTo(-2.1, 2.3, -2.3, 0.7);
+          g.moveTo(-2.4 * k, -0.6);
+          g.quadraticCurveTo(-2.35 * k, -2.95 * k - inset * 0.2, 0, -3.0 * k - inset * 0.2);
+          g.quadraticCurveTo(2.35 * k, -2.95 * k - inset * 0.2, 2.4 * k, -0.6);
+          g.lineTo(2.35 * k, 0.8);
+          g.quadraticCurveTo(2.15 * k, 2.4, 0.95 * k, 2.95);
+          g.quadraticCurveTo(0, 3.15, -0.95 * k, 2.95);
+          g.quadraticCurveTo(-2.15 * k, 2.4, -2.35 * k, 0.8);
           g.closePath();
         };
-        g.fillStyle = W(0.17);
-        helmet();
+        g.fillStyle = shell(-2.4, 2, 2.4, -3, 0.3, 0.62);
+        helmet(0);
         g.fill();
-        const hl = g.createRadialGradient(-0.8, -1.7, 0.2, -0.8, -1.7, 2.3);
-        hl.addColorStop(0, W(0.4));
-        hl.addColorStop(1, W(0));
+        // dark glossy visor inset over the face, with a soft highlight up top
+        g.fillStyle = W(0.12);
+        helmet(0.18);
+        g.fill();
+        const hl = g.createLinearGradient(0, -2.4, 0, 0.6);
+        hl.addColorStop(0, WA(0.3));
+        hl.addColorStop(1, WA(0));
         g.fillStyle = hl;
-        helmet();
+        helmet(0.18);
         g.fill();
-        // visor edge light: a thin bright line down the side of the face
-        g.strokeStyle = W(0.9);
-        g.lineWidth = 0.2;
-        g.beginPath();
-        g.moveTo(-1.5 + look.x * 0.3, -2.3);
-        g.quadraticCurveTo(-0.3 + look.x * 0.3, -1.9, -0.2 + look.x * 0.3, -0.4);
-        g.quadraticCurveTo(-0.2 + look.x * 0.3, 1.4, 0.4 + look.x * 0.3, 2.4);
-        g.stroke();
-        dot(0.6, -1.3, 0.2, W(0.5)); // sensor
+        // jaw line of the shell showing below the visor, and a chin vent
+        stroke(-0.8, 2.75, 0.8, 2.75, 0.14, W(0.2));
+        // twin sensors in the visor, glancing with the cursor
+        const mx = look.x * 0.35,
+          my = look.y * 0.25;
+        dot(-0.75 + mx, -0.6 + my, 0.22, W(0.55));
+        dot(0.75 + mx, -0.6 + my, 0.22, W(0.55));
         g.restore();
 
-        // ---- read back, then dissolve the waist into the stream
+        // ---- hips and thighs: a silhouette the stream builds (thinned out below)
+        const yBot = (f.rows - oy) / u + 1;
+        poly(
+          [
+            [-3.9, 18.8],
+            [3.9, 18.8],
+            [4.4, 21.5],
+            [3.6, yBot],
+            [1.1, yBot],
+            [0.6, 22.6],
+            [-0.6, 22.6],
+            [-1.1, yBot],
+            [-3.6, yBot],
+            [-4.4, 21.5],
+          ],
+          shell(-4, 24, 4, 19, 0.3, 0.55)
+        );
+
+        // ---- read back: buf now holds the target field T (the drawn figure)
         f.readOffscreen(1);
         const buf = f.buf,
           cols = f.cols,
           rows = f.rows;
-        // the torso fades out below the waist: cells drop out at random with depth
-        const r0 = Math.max(0, Math.floor(oy + 15.5 * u));
-        for (let r = r0; r < rows; r++) {
-          const y = (r - oy) / u;
-          const keep = 1 - smooth(15.5, 21.5, y);
-          for (let c = 0; c < cols; c++) {
-            const i = r * cols + c;
-            if (buf[i] <= 0) continue;
-            const x = (c - ox) / u;
-            if (Math.abs(x) > 4.6) continue; // arms and hands stay solid
-            if (hash(c, r) > keep) buf[i] = 0;
-            else buf[i] *= 0.6 + 0.4 * keep;
+        const n = cols * rows;
+        const dt = f.dt || 0.016;
+        const p = REDUCED ? 1 : clamp(t / ASSEMBLE, 0, 1);
+        temp.set(buf);
+
+        // lit cells are the particles' destinations; the lower body counts twice
+        // so the stream visibly builds it
+        if (lit.length < n * 2) lit = new Int32Array(n * 2);
+        litN = 0;
+        const rMid = oy + 15.5 * u;
+        for (let i = 0; i < n; i++) {
+          if (temp[i] > 0.06) {
+            lit[litN++] = i;
+            if (i / cols > rMid) lit[litN++] = i;
           }
         }
-        // the initial assembly: everything rises into place, bottom first
-        const p = REDUCED ? 1 : clamp(t / ASSEMBLE, 0, 1);
+        if (!spawned && litN) {
+          for (let i = 0; i < NP; i++) spawn(i, f, i % 7 === 0);
+          spawned = true;
+        }
+
+        // landing charge: decays, and glows where particles have just arrived
+        const decay = Math.pow(0.05, dt);
+        for (let i = 0; i < n; i++) fill[i] *= decay;
+
+        // move the particles
+        const speed = rows * 0.32; // cells per second
+        if (!REDUCED && spawned) {
+          for (let i = 0; i < NP; i++) {
+            const o = i * 9;
+            let x = P[o],
+              y = P[o + 1],
+              vx = P[o + 2],
+              vy = P[o + 3];
+            const age = (P[o + 6] += dt);
+            if (P[o + 7] > 0.5) {
+              // dust leaving the body: drifts off and fades
+              vx += fsin(t * 2.1 + P[o + 8]) * 30 * dt;
+              vy += (fsin(t * 1.7 + P[o + 8] * 2) * 20 - 6) * dt;
+              x += vx * dt;
+              y += vy * dt;
+              if (age > 1.8 || x < -30 || y < -30) {
+                spawn(i, f, rnd() < 0.15);
+                continue;
+              }
+            } else {
+              // incoming: steer toward the target cell with a little wander
+              const dx = P[o + 4] - x,
+                dy = P[o + 5] - y;
+              const d = Math.hypot(dx, dy) + 1e-3;
+              const sp = speed * (0.6 + 0.4 * clamp(d / 40, 0, 1)); // ease in near the target
+              const wx = fsin(t * 2.3 + P[o + 8]) * speed * 0.35,
+                wy = fsin(t * 1.9 + P[o + 8] * 3) * speed * 0.25;
+              vx += ((dx / d) * sp + wx * clamp(d / 25, 0, 1) - vx) * 3.5 * dt;
+              vy += ((dy / d) * sp + wy * clamp(d / 25, 0, 1) - vy) * 3.5 * dt;
+              x += vx * dt;
+              y += vy * dt;
+              if (d < 1.3 || age > 8) {
+                // land: deposit on the target cell and start again
+                const ti = Math.floor(P[o + 5]) * cols + Math.floor(P[o + 4]);
+                if (ti >= 0 && ti < n) fill[ti] += 0.9;
+                spawn(i, f, rnd() < 0.15);
+                continue;
+              }
+            }
+            P[o] = x;
+            P[o + 1] = y;
+            P[o + 2] = vx;
+            P[o + 3] = vy;
+          }
+        }
+
+        // ---- compose the body from settled particles: shimmer, a few holes, and
+        // the lower body thinning out with depth except where the stream has landed
+        for (let r = 0; r < rows; r++) {
+          const y = (r - oy) / u;
+          const solid = 1 - smooth(15.5, yBot - 0.5, y);
+          for (let c = 0; c < cols; c++) {
+            const i = r * cols + c;
+            const T = temp[i];
+            const charge = fill[i];
+            if (T <= 0.02) {
+              buf[i] = charge * 0.3;
+              continue;
+            }
+            const h = hash(c, r);
+            const shimmer = 0.5 + 0.5 * fsin(h * 6.28 + t * (1.2 + h * 2.5));
+            let v = T * (0.74 + 0.26 * shimmer);
+            if (h > 0.92) v *= 0.35; // static holes: the surface is grainy
+            const x = (c - ox) / u;
+            if (y > 15.5 && Math.abs(x) < 5) {
+              // density falls with depth; landed particles light cells back up
+              const keep = hash(r, c) < solid * solid * 0.95 + Math.min(1, charge) ? 1 : 0.12;
+              v *= keep;
+            }
+            buf[i] = v + charge * 0.35;
+          }
+        }
+
+        // ---- the particles themselves, with short trails along their motion
+        if (!REDUCED && spawned) {
+          const gain = p < 1 ? 0.4 + 0.6 * p : 1;
+          for (let i = 0; i < NP; i++) {
+            const o = i * 9;
+            const leaving = P[o + 7] > 0.5;
+            const base = leaving ? 0.3 * (1 - P[o + 6] / 1.8) : 0.3;
+            for (let k = 0; k < 6; k++) {
+              const x = P[o] - P[o + 2] * dt * k * 2.2;
+              const yy = P[o + 1] - P[o + 3] * dt * k * 2.2;
+              const c = Math.round(x),
+                r = Math.round(yy);
+              if (c < 0 || r < 0 || c >= cols || r >= rows) continue;
+              buf[r * cols + c] += base * gain * Math.pow(0.62, k);
+            }
+          }
+        }
+
+        // ---- the initial assembly: everything rises into place, bottom first
         if (p < 1) {
           temp.set(buf);
           buf.fill(0);
@@ -820,21 +999,6 @@
               if (cx2 < 0 || cy2 < 0 || cx2 >= cols || cy2 >= rows) continue;
               buf[cy2 * cols + cx2] += v * (0.35 + 0.65 * e);
             }
-          }
-        }
-        // the stream: faint and wide at the bottom, brighter and tighter as it
-        // climbs, so the rising particles read as the material the body is made of
-        if (!REDUCED) {
-          const gain = p < 1 ? p : 1;
-          for (let i = 0; i < NP; i++) {
-            const x = P[i * 4],
-              y = P[i * 4 + 1];
-            const c = Math.round(ox + x * u),
-              r = Math.round(oy + y * u);
-            if (c < 0 || r < 0 || c >= cols || r >= rows) continue;
-            const rise = clamp((26 - y) / 11, 0, 1);
-            const v = (0.05 + 0.6 * rise * rise) * (0.7 + 0.3 * Math.sin(t * 5 + P[i * 4 + 3])) * gain;
-            buf[r * cols + c] += v;
           }
         }
       },
